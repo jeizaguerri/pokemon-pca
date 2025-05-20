@@ -9,6 +9,8 @@ import plotly.express as px
 from scipy.spatial import ConvexHull
 import plotly.graph_objects as go
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 INPUT_DATA_FILE = 'pokemon_data.csv'
 TYPE_COLORS = {
     'normal': '#A8A77A', 'fire': '#EE8130', 'water': '#6390F0', 'electric': '#F7D02C',
@@ -274,7 +276,7 @@ st.header("1. Input data")
 st.markdown("""
     Before starting to process and analyze the data, we first need to load it from somewhere. Thankfully, the people from [PokéAPI](https://pokeapi.co/) are doing an exceptional job at providing Pokémon data in a structured way.
     A few simple requets to their API and we can get all the data we need. For this project, I only wanted to get the Pokémon stats and types, although arguably, other data such as abilities, moves, and evolutions could be interesting too to answer some of the questions I proposed in the introduction.
-    It wouldn't be too polite to request all the data every time we want to analyze it, so I decided to save the data in a [CSV]() file which you can find in the same directory as this notebook.
+    It wouldn't be too polite to request all the data every time we want to analyze it, so I decided to save the data in a [CSV](https://github.com/jeizaguerri/pokemon-pca/blob/main/pokemon_data.csv) file which you can find in the same directory as this notebook.
             """)
 
 if not os.path.exists(INPUT_DATA_FILE):
