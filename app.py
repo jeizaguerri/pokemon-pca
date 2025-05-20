@@ -259,7 +259,7 @@ def find_and_plot_k_nearest(pokemon_data, target, k=5):
 
 st.set_page_config(layout="centered")  # Ensure proper layout
 
-st.title("Pokémon Data Analysis in PCA Space")
+st.title("Pokémon Data Analysis in Low-Dimensional Space")
 st.subheader("By Juan Eizaguerri")
 st.image("imgs/banner.png")
 st.markdown("""
@@ -340,7 +340,7 @@ for t1, t2 in missing:
     )
 st.markdown(", ".join(combos), unsafe_allow_html=True)
         
-st.header("3. Performing Analysis on a Low Dimensionality Space")
+st.header("3. Performing Analysis on a PCA Space")
 st.markdown("""
     The next step is to perform dimensionality reduction on the stats data. For this, we are going to use [Principal Component Analysis (PCA)](https://en.wikipedia.org/wiki/Principal_component_analysis). Essentially, PCA is a technique that transforms the data into a lower dimensional space while preserving as much variance as possible. There are [other dimensionality reduction techniques](https://www.researchgate.net/profile/Eric-Postma/publication/228657549_Dimensionality_Reduction_A_Comparative_Review/links/0046353a3047fc2863000000/Dimensionality-Reduction-A-Comparative-Review.pdf) such as t-SNE and UMAP, but I like to use PCA as a starting point since it is unsupervised easy to interpret.
             """)
