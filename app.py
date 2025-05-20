@@ -432,4 +432,19 @@ st.markdown("""
             """)
 
 
-st.header("4. Understanding competitive Pokémon teams")
+# st.header("4. Understanding competitive Pokémon teams")
+
+
+st.markdown("---")
+st.markdown(
+    """
+    <div style='text-align: center; font-size: 1.1em;'>
+        Thank you for reading. Please keep in mind that this project was created as part of a personal challenge to learn more about data analysis and visualization and to have fun with Pokémon data. Some of the results might not be accurate or relevant, and I encourage you to do your own research and analysis.
+        If you have any questions or suggestions, please feel free to contact me. I would love to hear your feedback and ideas for future projects!
+        <br><br>
+        <b>Author:</b> Juan Eizaguerri<br>
+        <a href="https://github.com/jeizaguerri/pokemon-pca" target="_blank">Check out the code on GitHub</a><br>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
