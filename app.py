@@ -265,18 +265,18 @@ st.image("imgs/banner.png")
 st.markdown("""
     Visualizing data in a graphical way often helps to understand the data better, however, this is not easy to do when dealing with high dimensional data.
     I wanted to put this into practice and thought that it would be a good idea to use data I am already familiar with, given that I should be able to tell when a result is wrong or unexpected.
-    This is how I ended up with a needlessly complex (but fun) analysis on Pokémon stats and types. Are there type combinations yet to be explored? Could they be classified in large groups? Do Pokémon stats correlate with their types? Could we use this information to build a better team? I will try to answer these questions in this project.
+    This is how I ended up with a needlessly complex (but fun) analysis on Pokémon stats and types. *Are there type combinations yet to be explored? Could they be classified in large groups? Do Pokémon stats correlate with their types? Could we use this information to build a better team?* I will try to answer these questions in this project.
     """)
 
 st.info("""
-    NOTE: Most of the plots and results here are computed in real time to be fully interactive. This means some of the plots might take some time to load and you could encounter some errors. If you do, please feel free to contact me and I will try to fix it as soon as possible.
+    NOTE: Most of the plots and results here are calculated in real time to be fully interactive. This means some of the plots might take some time to load and you could encounter some errors. If you do, please feel free to contact me and I will try to fix it as soon as possible.
     """)
 
 st.header("1. Input data")
 st.markdown("""
     Before starting to process and analyze the data, we first need to load it from somewhere. Thankfully, the people from [PokéAPI](https://pokeapi.co/) are doing an exceptional job at providing Pokémon data in a structured way.
-    A few simple requets to their API and we can get all the data we need. For this project, I only wanted to get the Pokémon stats and types, although arguably, other data such as abilities, moves, and evolutions could be interesting too to answer some of the questions I proposed in the introduction.
-    It wouldn't be too polite to request all the data every time we want to analyze it, so I decided to save the data in a [CSV](https://github.com/jeizaguerri/pokemon-pca/blob/main/pokemon_data.csv) file which you can find in the same directory as this notebook.
+    A few simple requests to their API and we can get all the data we need. For this project, I only wanted to get the Pokémon stats and types, their names, and their sprite for visualization purposes, although arguably, other data such as abilities, moves, and evolutions could be interesting too to answer some of the questions I proposed in the introduction.
+    It wouldn't be too polite to request all the data every time we want to analyze it, so I decided to save the data in a [CSV](https://github.com/jeizaguerri/pokemon-pca/blob/main/pokemon_data.csv) file which you can find in the directory this app. You can also check the code I used to get the data [here](https://github.com/jeizaguerri/pokemon-pca/blob/main/load_stats.py).
             """)
 
 if not os.path.exists(INPUT_DATA_FILE):
@@ -286,7 +286,7 @@ if not os.path.exists(INPUT_DATA_FILE):
 st.success("Data file found!")
 try:
     pokemon_data = pd.read_csv(INPUT_DATA_FILE)
-    st.write("You can see a preview of the data below:")
+    st.write("Here is a little preview of the data:")
     st.dataframe(pokemon_data)
 except Exception as e:
     st.error(f"Failed to load data: {e}")
@@ -307,7 +307,7 @@ st.markdown("""
     Pokémon can have one or two types. The first type is the main type, while the second type is the secondary type. As you can see in the plot above, most Pokémon have two types, while a still significant number of Pokémon have only one type.
     This is important to keep in mind when analyzing the data, as we are going to be filtering the data by type in future sections. In this cases we will only be using the first type, as the second type is not always available.
     
-    Next, let's see how many Pokémon there are of each type (having main and secondary type in mind), which is to understand the distribution of types in the data and to see if there are any types that are over or under represented.
+    Next, let's see how many Pokémon there are of each type (having main and secondary type in mind), which will be useful to understand the distribution of types in the data and to see if there are any types that are over or under represented.
     """)
 
 type_counts = count_pokemon_by_type(pokemon_data)
@@ -317,7 +317,7 @@ plt.close(fig2)
 st.markdown("""
     While there is is a good amount of Pokémon of each type, it is surprising to see such an unbalanced distribution. It makes sense that the later introduced types such as fairy have less Pokémon, but it is interesting to see that some types such as ice, which is a type that was introduced in the first generation, have so few Pokémon, global warming seems to be affecting Pokémon too.
 
-    Let's dig a bit deeper and see if there are more common combinations of types, or if there are types combinations that are yet to be explored. For this, we are going to create a co-occurrence matrix of types. The upper triangle of the matrix will be redundant so we will only show the lower triangle, also, the main diagonal is removed since there are no Pokémon with the same type twice.
+    Let's dig a bit deeper and see if there are more common combinations of types, or if there are types combinations that are yet to be explored. For this, we are going to create a co-occurrence matrix of types. The upper triangle of the matrix will be redundant so we will only show the lower triangle, the main diagonal is also removed since there are no Pokémon with the same type twice.
             """)
 
 type_cooccurrence = get_type_cooccurrence(pokemon_data)
@@ -326,7 +326,7 @@ st.pyplot(fig3)
 plt.close(fig3)
 
 st.markdown("""
-    Good news for normal-flying fans, you can fill a full box of them in your [PC](https://bulbapedia.bulbagarden.net/wiki/Pok%C3%A9mon_Storage_System#Limitations). Overall, most of the combinations are covered, but there are exactly 9 combinations that are yet to be explored. Here is the full list:
+    Good news for normal-flying fans, you can fill a full box of Pokémon with this type combination in your [PC](https://bulbapedia.bulbagarden.net/wiki/Pok%C3%A9mon_Storage_System#Limitations). Overall, most of the combinations are covered, but there are exactly 9 combinations that are yet to be explored. Here is the full list:
 """)
 missing = missing_combinations(type_cooccurrence)
 # Display missing combinations in a compact way
@@ -361,7 +361,7 @@ plt.close(fig4)
 st.markdown("""
     Each of the components explains for a common kind of Pokémon.
     - **PC1**: Pokémon with overall balanced stats, with a bit more emphasis on attack and special attack, and a usually low speed.
-    - **PC2**: Very fast and extremely weak Pokémon in terms of defense and hp.´
+    - **PC2**: Very fast and extremely weak Pokémon in terms of defense and hp.
     - **PC3**: Big physical attackers with a good amount of speed but bad special attack or special defense.
 
     We commonly associate certain Pokemon types with certain stats, for example, we expect a rock type to be a bit slower but with a lot of attack and defense, while we expect a flying type to be fast but weak. Let's see if this kind of assumptions are true by plotting the Pokémon in the PCA space and coloring them by their main type.
@@ -372,7 +372,7 @@ st.plotly_chart(fig5, use_container_width=True)
 
 # Explain outliers
 st.markdown("""
-    Most of the Pokémon are well grouped in an ellipsoid shape, however, there is a few outliers, out of which 2 of them stand out as you can probably see. These Pokémon are *Shuckle* and *Eternatus Eternamax*. Let's see what they are doing there by looking at their stats.
+    Most Pokémon are well grouped in an ellipsoid shape, however, there is a few outliers, out of which 2 of them stand out as you can probably see. These Pokémon are *Shuckle* and *Eternatus Eternamax*. Let's see what they are doing there by looking at their stats.
 """)
 col1, col2 = st.columns(2)
 with col1:
@@ -381,11 +381,11 @@ with col2:
     st.image("imgs/eternatus.png", caption="Eternatus stats")
 
 st.markdown("""
-    - Starting with *Shuckle*, this Pokémon has extremely low speed and attack, giving it very low values in the PC2 and PC3 axes. In the other hand, it has very high defense and special defense, which is what makes it mantain a positive value in the PC1 axis.      
+    - Starting with *Shuckle*, this little guy has extremely low speed and attack, giving it very low values in the PC2 and PC3 axes. In the other hand, it has very high defense and special defense, which is what makes it mantain a positive value in the PC1 axis.      
     - *Eternatus Eternamax* is special case, as it is a special form of *Eternatus* that only appears as an opponent in the Pokémon Sword and Shield games story. It has the highest sum of stats of any Pokémon, with a total of 1125. This is what makes it stand out in the PCA space, as it has very high values in all the axes.
     
     Before moving on, let's see if the descriptions we made about each one of the PCs are true by looking at the representative Pokémon for each one of them. For this, we are going to find the Pokémon that are closest to the extremes of each one of the PCs.
-    We are going to use the distance from the origin to find the closest Pokémon to the extremes of each one of the PCs. This is done by finding the Pokémon that are closest to the points (max, 0, 0), (0, max, 0) and (0, 0, max) in the PCA space. 
+            This is done by finding the Pokémon that are closest to the points (max, 0, 0), (0, max, 0) and (0, 0, max) in the PCA space. 
             """)
 
 st.markdown("**Highest PC1 Pokémon**")
@@ -398,11 +398,11 @@ st.markdown("""Representing the PC2 axis, we have Pokémon that are very fast bu
 
 st.markdown("**Highest PC3 Pokémon**")
 find_and_plot_k_nearest(pokemon_data, [0, 0, pca_result[:, 2].max()], k=5)
-st.markdown("""Lastly, we have the "glass cannon" Pokémon, which are very strong in attack but weak in special attack and special defense, which again is what we expected. This time we have 3 different variants of *Darmanitan* leading the list.""")
+st.markdown("""Lastly, we have the "glass cannon" Pokémon, all of them are very strong in attack but weak in special attack and special defense, which again is what we expected. This time we have 3 different variants of *Darmanitan* leading the list.""")
 
 st.markdown("""
     The scatter plot is too noisy to get an idea of the distribution of the Pokémon of each type in the PCA space, so let's try to clean it up a bit to make things clearer.
-    First, we are going to remove the outliers by calculating the centroid of each type, computing the distance of each Pokémon to the centroid and making a cutoff at the 80th percentile.
+    First, we are going to remove the outliers by calculating the centroid of each type, computing the euclidean distance of each Pokémon to the centroid and making a cutoff at the 80th percentile.
     Next, we are going to plot the convex hull of the Pokémon of each type, in other words, the smallest convex shape that contains all the Pokémon of each type.
     """)
 
@@ -432,7 +432,31 @@ st.markdown("""
             """)
 
 
-# st.header("4. Understanding competitive Pokémon teams")
+st.header("4. Understanding competitive Pokémon teams")
+st.markdown("""
+    Even though there are a lot of different Pokémon to choose from when playing the games, the competitive scene is usually dominated by a few Pokémon that are considered to be the best in the game, the ones that set the meta.
+    The popularity of a Pokémon in the competitive scene is not only determined by its stats, but also by its typing, movepool, abilities and synergy with other Pokémon, but it is still an important factor to consider, so it would make sense to find some correlation between the stats of a Pokémon and its usage in the competitive scene.
+    Let's find out where the most popular Pokémon are in the PCA space and see if we can extract any information from it.
+    For this, we are going to use the data provided by [Smogon](https://www.smogon.com/stats/) which is a competitive Pokémon community specializing in the art of competitive battling. They provide a lot of data about the usage of Pokémon extracted from the [Pokémon Showdown simulator](https://play.pokemonshowdown.com/).
+    We are going to be using the data from december 2024, OU tier, which is the most popular tier in the game, related to the most popular Pokémon. To make sure we are using the data from the best players, we will only be using the data from player with an elo rating of 1825 or higher. You can find the data [here](https://www.smogon.com/stats/2024-12/gen9ou-1825.txt).
+    The data is provided as a plain text file, so a bit of regex magic is needed to extract the data. I wrote a small script to do this, which you can find [here](https://github.com/jeizaguerri/pokemon-pca/blob/main/load_competitive.py). As we did for the stats data, we will save the processed data in a [CSV](https://github.com/jeizaguerri/pokemon-pca/blob/main/smogon_usage_stats.csv) file to avoid having to process it every time.
+    """)
+if not os.path.exists('smogon_usage_stats.csv'):
+    st.error("Smogon usage stats file 'smogon_usage_stats.csv' not found.")
+    st.stop()
+st.success("Smogon usage stats file found!")
+try:
+    smogon_data = pd.read_csv('smogon_usage_stats.csv')
+    st.write("You can preview the data here:")
+    st.dataframe(smogon_data)
+except Exception as e:
+    st.error(f"Failed to load data: {e}")
+
+st.markdown("""
+    As you can see, the data shows the usage of each Pokémon in both raw and percentage values. The *real* column can be a bit misleading, as it means the total times this pokemon appeared in battle / total number of pokemon actually sent out in battle.
+    What we are interested in is the *usage* column, which shows the percentage of battles in which the Pokémon was used. This means that if a Pokémon has a usage of 10%, it was used in 10% of the battles.
+            """)
+
 
 
 st.markdown("---")
