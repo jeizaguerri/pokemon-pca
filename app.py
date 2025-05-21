@@ -8,6 +8,8 @@ from sklearn.decomposition import PCA
 import plotly.express as px
 from scipy.spatial import ConvexHull
 import plotly.graph_objects as go
+from sklearn.mixture import GaussianMixture
+import itertools
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -242,7 +244,7 @@ def find_and_plot_k_nearest(pokemon_data, target, k=5):
     closest = find_k_nearest_pokemon(pokemon_data, target, k)
     closest = closest[['image', 'name', 'distance']]
 
-    st.data_editor(
+    st.dataframe(
         closest,
         column_config={
             'image': st.column_config.ImageColumn(label="Image", width=20),
@@ -256,6 +258,151 @@ def find_and_plot_k_nearest(pokemon_data, target, k=5):
         hide_index=True,
         use_container_width=True
     )
+
+def merge_dataframes(pokemon_data, smogon_data):
+    smogon_data['name'] = smogon_data['Pokemon'].str.lower()
+    smogon_data['name'] = smogon_data['name'].str.replace(" ", "-", regex=False)
+    smogon_data = smogon_data.rename(columns={'Rank': 'rank', 'Usage %': 'usage_percent'})
+    smogon_data = smogon_data[['name', 'rank', 'usage_percent']]
+    pokemon_data = pd.merge(pokemon_data, smogon_data, on='name', how='left')
+    # Set default values for missing rank and usage_percent
+    pokemon_data['rank'] = pokemon_data['rank'].fillna(999).astype(int)
+    pokemon_data['usage_percent'] = pokemon_data['usage_percent'].fillna(0)
+    return pokemon_data
+
+def plot_pca_usage(filtered_pokemon_data):
+    fig = px.scatter_3d(
+        filtered_pokemon_data,
+        x='pca1',
+        y='pca2',
+        z='pca3',
+        color='usage_percent',
+        color_continuous_scale=px.colors.sequential.Viridis,
+        title='3D PCA of Pokémon Stats (Filtered by Usage)',
+        labels={'pca1': 'PCA Component 1', 'pca2': 'PCA Component 2', 'pca3': 'PCA Component 3'},
+        hover_data=['name'] if 'name' in filtered_pokemon_data.columns else None,
+        width=800,  # Set the width of the plot
+        height=600,  # Set the height of the plot
+    )
+
+    # Make Pokémon with usage_percent > 1% bigger
+    marker_sizes = np.where(filtered_pokemon_data['usage_percent'] > 1, 15, 5)
+    fig.update_traces(marker_size=marker_sizes)
+
+    return fig
+
+
+def test_bics(components, data):
+    bic_values = []
+    for n_components in components:
+        gmm = GaussianMixture(n_components=n_components, random_state=0)
+        gmm.fit(data[['pca1', 'pca2', 'pca3']])
+        bic_values.append(gmm.bic(data[['pca1', 'pca2', 'pca3']]))
+    
+    return bic_values
+
+def plot_bic(components, bic_values):
+    fig = px.line(
+        x=components,
+        y=bic_values,
+        labels={'x': 'Number of Components', 'y': 'BIC'},
+        title='BIC vs Number of Components',
+    )
+    fig.update_traces(mode='lines+markers')
+    return fig
+
+def train_gmm(data, n_components):
+    gmm = GaussianMixture(n_components=n_components)
+    gmm.fit(data[['pca1', 'pca2', 'pca3']])
+    return gmm
+
+def generate_pokemon(gmm, samples, pokemon_data):
+    generated_points = gmm.sample(samples)[0]
+
+    # Find the closest Pokémon to each generated point
+    generated_pokemon = []
+    for point in generated_points:
+        closest = find_k_nearest_pokemon(pokemon_data, point, k=1)
+        generated_pokemon.append(closest.iloc[0])
+
+    generated_pokemon = pd.DataFrame(generated_pokemon).reset_index(drop=True)
+
+    return generated_pokemon
+
+def display_generated_pokemon(generated_pokemon, n_columns):
+    # Display generated Pokémon in a 5x2 grid (images and names)
+    cols = st.columns(n_columns)
+    for i, row in generated_pokemon.iterrows():
+        with cols[i % n_columns]:
+            st.image(row['image'], use_container_width=True)
+            st.caption(row['name'].capitalize())
+
+def evaluate_team(team, pokemon_data):
+    # Raw stats: sum of all stats
+    raw_stats = pokemon_data.loc[team, STAT_ROWS].sum().sum()
+    # Coverage: number of unique types (type1 and type2)
+    types = set()
+    for idx in team:
+        row = pokemon_data.loc[idx]
+        types.add(row['type1'])
+        if pd.notnull(row['type2']):
+            types.add(row['type2'])
+    coverage = len(types)
+    # Balance: average pairwise distance in PCA space
+    pca_points = pokemon_data.loc[team, ['pca1', 'pca2', 'pca3']].to_numpy()
+    if len(pca_points) > 1:
+        dists = [np.linalg.norm(p1 - p2) for p1, p2 in itertools.combinations(pca_points, 2)]
+        balance = np.mean(dists)
+    else:
+        balance = 0
+    return raw_stats, coverage, balance
+
+def generate_candidate_teams(pokemon_data, n_teams=1000, team_size=6, usage_threshold=1.0):
+    # Only use Pokémon above usage threshold and drop duplicates by name (avoid megas, forms)
+    candidates = pokemon_data[pokemon_data['usage_percent'] >= usage_threshold].drop_duplicates('name')
+    candidate_indices = candidates.index.tolist()
+    teams = []
+    for _ in range(n_teams):
+        team = np.random.choice(candidate_indices, size=team_size, replace=False)
+        teams.append(team)
+    return teams
+
+def normalize_scores(scores):
+    # Normalize each objective to [0, 1]
+    arr = np.array(scores)
+    min_vals = arr.min(axis=0)
+    max_vals = arr.max(axis=0)
+    norm = (arr - min_vals) / (max_vals - min_vals + 1e-8)
+    return norm
+
+def select_pareto_front(scores):
+    # Find non-dominated solutions (Pareto front)
+    arr = np.array(scores)
+    is_efficient = np.ones(arr.shape[0], dtype=bool)
+    for i, c in enumerate(arr):
+        if is_efficient[i]:
+            is_efficient[is_efficient] = np.any(arr[is_efficient] > c, axis=1) | np.all(arr[is_efficient] == c, axis=1)
+            is_efficient[i] = True  # Keep self
+    return np.where(is_efficient)[0]
+
+def show_teams(pareto_teams, pareto_scores):
+    for i, (team, (raw_stats, coverage, balance)) in enumerate(zip(pareto_teams, pareto_scores)):
+        st.markdown(f"#### Team {i+1}")
+        st.markdown(f"**Raw stats:** {int(raw_stats)} &nbsp; | &nbsp; **Coverage:** {coverage} types &nbsp; | &nbsp; **Balance:** {balance:.2f}")
+        team_df = pokemon_data.loc[team][['image', 'name', 'type1', 'type2', 'usage_percent'] + STAT_ROWS]
+        st.dataframe(
+            team_df,
+            column_config={
+                'image': st.column_config.ImageColumn(label="Image", width=20),
+                'name': st.column_config.TextColumn(label="Name"),
+                'type1': st.column_config.TextColumn(label="Type 1"),
+                'type2': st.column_config.TextColumn(label="Type 2"),
+                'usage_percent': st.column_config.ProgressColumn(label="Usage %", max_value=100.0, format="%.2f"),
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+        st.divider()
 
 st.set_page_config(layout="centered")  # Ensure proper layout
 
@@ -432,14 +579,15 @@ st.markdown("""
             """)
 
 
-st.header("4. Understanding competitive Pokémon teams")
+st.header("4. Understanding the competitive Pokémon Meta")
 st.markdown("""
-    Even though there are a lot of different Pokémon to choose from when playing the games, the competitive scene is usually dominated by a few Pokémon that are considered to be the best in the game, the ones that set the meta.
+    Even though there are a lot of different Pokémon to choose from when playing through the games, the competitive scene is usually dominated by a few Pokémon that are considered to be the best in the game, the ones that set the meta.
     The popularity of a Pokémon in the competitive scene is not only determined by its stats, but also by its typing, movepool, abilities and synergy with other Pokémon, but it is still an important factor to consider, so it would make sense to find some correlation between the stats of a Pokémon and its usage in the competitive scene.
     Let's find out where the most popular Pokémon are in the PCA space and see if we can extract any information from it.
-    For this, we are going to use the data provided by [Smogon](https://www.smogon.com/stats/) which is a competitive Pokémon community specializing in the art of competitive battling. They provide a lot of data about the usage of Pokémon extracted from the [Pokémon Showdown simulator](https://play.pokemonshowdown.com/).
-    We are going to be using the data from december 2024, OU tier, which is the most popular tier in the game, related to the most popular Pokémon. To make sure we are using the data from the best players, we will only be using the data from player with an elo rating of 1825 or higher. You can find the data [here](https://www.smogon.com/stats/2024-12/gen9ou-1825.txt).
-    The data is provided as a plain text file, so a bit of regex magic is needed to extract the data. I wrote a small script to do this, which you can find [here](https://github.com/jeizaguerri/pokemon-pca/blob/main/load_competitive.py). As we did for the stats data, we will save the processed data in a [CSV](https://github.com/jeizaguerri/pokemon-pca/blob/main/smogon_usage_stats.csv) file to avoid having to process it every time.
+    
+    We are going to be using the data provided by [Smogon](https://www.smogon.com/stats/) which is a competitive Pokémon community specializing in the art of competitive battling. They provide a lot of information extracted from the [Pokémon Showdown simulator](https://play.pokemonshowdown.com/).
+    They publish reports every month for different tiers and modes. We will be using the data from december 2024, OU tier, which is the most popular tier in the game, related to the most popular Pokémon. Also we will only be using the data from players with an elo rating of 1825 or higher. You can find the raw data [here](https://www.smogon.com/stats/2024-12/gen9ou-1825.txt).
+    This information is not provided in a structure manner, but rather as a plain text file, so a bit of regex magic is needed to extract the different fields that we are looking for. I wrote a small script to do this, which you can find [here](https://github.com/jeizaguerri/pokemon-pca/blob/main/load_competitive.py). As we did for the stats data, we will save the processed data in a [CSV](https://github.com/jeizaguerri/pokemon-pca/blob/main/smogon_usage_stats.csv) file to avoid having to process it every time.
     """)
 if not os.path.exists('smogon_usage_stats.csv'):
     st.error("Smogon usage stats file 'smogon_usage_stats.csv' not found.")
@@ -453,16 +601,137 @@ except Exception as e:
     st.error(f"Failed to load data: {e}")
 
 st.markdown("""
-    As you can see, the data shows the usage of each Pokémon in both raw and percentage values. The *real* column can be a bit misleading, as it means the total times this pokemon appeared in battle / total number of pokemon actually sent out in battle.
+    As you can see, the table shows the usage of each Pokémon in both raw and percentage values. The *real* column can be a bit misleading, as it means the total times this pokemon appeared in battle / total number of pokemon actually sent out in battle.
     What we are interested in is the *usage* column, which shows the percentage of battles in which the Pokémon was used. This means that if a Pokémon has a usage of 10%, it was used in 10% of the battles.
+            
+    All that is left to do is to combine this data with the stats data we have, so we can see how the most popular Pokémon are distributed in the PCA space. We will do this by merging the two dataframes using the name of the Pokémon as the key. This will require some processing since the names are not exactly the same in both dataframes, but I will save you the trouble so that we can jump straight to the fun part.
             """)
 
+# Merge the dataframes
+pokemon_data = merge_dataframes(pokemon_data, smogon_data)
+with st.expander("Show merged Pokémon + Smogon data"):
+    st.dataframe(pokemon_data)
+
+st.markdown("""
+    With this done, let's repeat the scatter plot we did before, but this time we will color the Pokémon by their usage in the competitive scene.
+    We will also add a slider to filter the Pokémon by their usage, so we can focus on most popular Pokémon if needed.
+            """)
+
+# Filter the Pokémon by their usage
+usage_filter = st.slider(
+    "Select the usage percentage range:",
+    min_value=0.0,
+    max_value=100.0,
+    value=(0.0, 100.0),
+    step=1.0,
+)
+filtered_pokemon_data = pokemon_data[
+    (pokemon_data['usage_percent'] >= usage_filter[0]) &
+    (pokemon_data['usage_percent'] <= usage_filter[1])
+]
+st.markdown(f"Showing Pokémon with usage between {usage_filter[0]}% and {usage_filter[1]}%")
+
+# Plot the filtered Pokémon
+fig7 = plot_pca_usage(filtered_pokemon_data)
+st.plotly_chart(fig7, use_container_width=True)
+st.markdown("""
+    PCA1 must be a good indicator of a Pokémon viability in the competitive scene, as there is no Pokémon with negative values in this axis with a usage of more than 5%.
+    The most used Pokémon conform an outer shell around the less used Pokémon in the PCA space. The ones that escape from this shell are not allowed in this competitive league, most of them being legendaries and mega evolutions.
+            """)
+
+st.header("5. Building our very own teams!")
+st.markdown("""
+    Now that we have seen that stats DO matter when it comes to building a competitive team, nothing is stopping us from using this information to automatically build viable teams.
+            
+    1. We first need to train a model to learn the distribution of the best Pokémon (Usage over 1%) in the PCA space. The shape of the data is not too complex, so we can use a simple [Gaussian Mixture Model (GMM)](https://en.wikipedia.org/wiki/Mixture_model#Gaussian_mixture_model) to do this. This model represents the data distribution as a weighted sum of multiple Gaussian distributions, each capturing a different cluster or mode in the data.
+    2. Once we have trained the model, we can sample from it to generate new Pokémon with similar stats to the ones in the training set. This is done by sampling from each Gaussian distribution in the mixture according to its weight.
+    3. The points generated by the model will not match any real Pokémon, so the next step is to find the closest Pokémon to each generated point. This is done by calculating the euclidean distance from the generated point to each Pokémon in the training set and selecting the closest one.
+    
+    GMMs only have a single hyperparameter, which is the number of components to use. This is a bit tricky to choose, as we don't know how many clusters there are in the data. A good way to do this is to use the [Bayesian Information Criterion (BIC)](https://en.wikipedia.org/wiki/Bayesian_information_criterion), which is a measure of the goodness of fit of the model. The lower the BIC, the better the model fits the data.
+    We will fit models to our data with different number of components between 1 and 15 and select the one with the lowest BIC.
+            """)
+
+filtered_pokemon_data = pokemon_data[pokemon_data['usage_percent'] >= 1.0]
+components = range(1, 16)
+bic_values = test_bics(components, filtered_pokemon_data)
+fig8 = plot_bic(components, bic_values)
+st.plotly_chart(fig8, use_container_width=True)
+
+st.markdown("""
+    Okay, this was unexpected. It seems like a single Gaussian distribution is enough to represent the data. This is not too surprising when thinking about it, as we saw that the data was well grouped in a single ellipsoid shape. I am not complaining since this will make the execution of the model even faster.
+    This should be enough to generate individual competitive Pokémon. Let's see how this works in practice by generating a few Pokémon.
+            """)
+
+gmm = train_gmm(filtered_pokemon_data, n_components=1)
+generated_pokemon = generate_pokemon(gmm, samples=10, pokemon_data=pokemon_data)
+st.markdown("<h3 style='text-align: center;'>Generated Pokémon</h2>", unsafe_allow_html=True)
+display_generated_pokemon(generated_pokemon, n_columns=5)
+col_center = st.columns([1, 2, 1])
+with col_center[1]:
+    if st.button("Regenerate Pokémon", use_container_width=True, icon="⚡"):
+        gmm = train_gmm(filtered_pokemon_data, n_components=1)
+        generated_pokemon = generate_pokemon(gmm, samples=10, pokemon_data=pokemon_data)
 
 
-st.markdown("---")
+
+
+# IMPLEMENTATION
+
+st.markdown("""
+    The model seems to be suggesting good Pokémon, although sometimes it is outputing mega evolutions as if they were base Pokémon, which is not ideal. This is because the model is trained on the whole dataset, which includes mega evolutions. We could fix this by filtering the data to only include non-mega Pokémon before training the model, but we are going to leave it as is for now.
+            
+    The last step in our journey is to use this generator to build teams of 6 Pokémon. As you probably already thought, generating 6 individually viable Pokémon is not enough to build a make team. We need to make sure that the Pokémon we generate are not only good on their own, but also work well together as a team.
+    I initially wanted to do this by some kind of supervised learning trained on popular team compositions, but sadly I couldn't find a good dataset to train the model. Instead, I decided to use a more heuristic approach, converting the problem into a [multi-objective optimization (MOO) problem](https://en.wikipedia.org/wiki/Multi-objective_optimization).
+    This kind of problems involve finding solutions that balance two or more conflicting objectives while satisfying a set of constraints. Instead of a single best answer, MOO seeks a set of [Pareto optimal solutions](https://es.wikipedia.org/wiki/Eficiencia_de_Pareto).
+
+    Applying this to pokémon team building is an extremely hard task as there are a lot of factors to consider, we are going to simplify the problem a bit by only considering the following objectives:
+    - **Raw stats**: We saw earlier that stats usually correlate with usage, so it makes sense to use them as a metric to evaluate the teams. We are going to use the sum of all the stats of the Pokémon in the team as a metric to evaluate the teams. The higher the sum, the better the team is.
+    - **Coverage**: The team should cover as many types as possible. This is important to avoid having a single type weakness, which can be exploited by the opponent. This is easy to calculate by simply counting the number of different types in the team.
+    - **Balance**: The team should be balanced in term of stats. This is important to make sure we have a good mix of offensive and defensive Pokémon, and don't end up with a team full of glass cannons or tanks. For this, we are going to use the average pair distance between the Pokémon in the team in the PCA space. The higher the distance, the more balanced the team is.
+       
+    There is multiple ways to solve MOO problems, such as [genetic algorithms]() and [reinforcement learning](https://en.wikipedia.org/wiki/Reinforcement_learning). Instead, se are going to use a simple grid search with Pareto filtering since it will be easier to implement and understand.
+    All we need to do is to generate a lot of teams and then filter the ones that are Pareto optimal. This is done by comparing each team with all the other teams and checking if it is better in at least one objective and not worse in any other objective.
+            """)
+
+st.markdown("### Generate optimized teams")
+n_teams = st.slider("Number of candidate teams to generate", 100, 3000, 1000, step=100)
+team_size = 6
+usage_threshold = 0.0
+
+if st.button("Generate Teams", use_container_width=True, icon="🛡️"):
+    with st.spinner("Generating and evaluating teams..."):
+        teams = generate_candidate_teams(pokemon_data, n_teams=n_teams, team_size=team_size, usage_threshold=usage_threshold)
+        scores = [evaluate_team(team, pokemon_data) for team in teams]
+        norm_scores = normalize_scores(scores)
+        # For all objectives, higher is better
+        pareto_indices = select_pareto_front(norm_scores)
+        pareto_teams = [teams[i] for i in pareto_indices]
+        pareto_scores = [scores[i] for i in pareto_indices]
+
+    st.success(f"Found {len(pareto_teams)} Pareto-optimal teams!")
+    with st.expander("Show Pareto-optimal teams"):
+        show_teams(pareto_teams, pareto_scores)
+    
+st.markdown("""
+    And there you have it! I wouldn't trust this teams to try to win a tournament, but they look good on paper.
+    This method would easily extensible by adding more objectives, such as synergy between Pokémon and coverage agains common meta threads.
+    It could even be used as a "auto-complete" feature, where you could select a few Pokémon and the app would generate a team for you.
+            """)
+
+st.header("6. Conclusion")
+st.markdown("""
+    I consider this project a success, as I was able to carry out all the ideas I had in mind when I started it. After some basic data analysis on the Pokémon types, I was able to perform PCA on the stats data and visualize all the Pokémon in a way that is easy to understand.
+    This low-dimensional representation of the data allowed me to train a competitive Pokémon generator using a Gaussian Mixture Model. This model was later used to generate whole teams through a multi-objective optimization approach.
+    There is still a lot of things to explore and improve, so feel free to take the [code for this project](https://github.com/jeizaguerri/pokemon-pca) and use it as a starting point for your own ideas.
+
+    I hope you enjoyed this project as much as I did. I learned a lot about data analysis and visualization, and I had a lot of fun along the way.
+    I also learned a bit more about Pokémon, which is always a plus. 
+            """)
+
+st.divider()
 st.markdown(
     """
-    <div style='text-align: center; font-size: 1.1em;'>
+    <div style='text-align: center; font-size: 1.1em; color: #666666;'>
         Thank you for reading. Please keep in mind that this project was created as part of a personal challenge to learn more about data analysis and visualization and to have fun with Pokémon data. Some of the results might not be accurate or relevant, and I encourage you to do your own research and analysis.
         If you have any questions or suggestions, please feel free to contact me. I would love to hear your feedback and ideas for future projects!
         <br><br>

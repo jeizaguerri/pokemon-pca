@@ -49,6 +49,9 @@ def get_pokemon_data(pokemon_url):
     stats = get_pokemon_stats(pokemon)
     image_url = pokemon.get('sprites').get('front_default')
 
+    if not stats or not image_url:
+        return None
+
     # Create a dictionary to hold the Pokemon data
     pokemon_data = {
         'name': name,
