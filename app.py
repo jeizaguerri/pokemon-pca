@@ -16,7 +16,7 @@ STAT_ROWS = ['hp', 'attack', 'defense', 'special-attack', 'special-defense', 'sp
 
 st.set_page_config(layout="centered")  # Ensure proper layout
 
-st.title("Pokémon Data Analysis in Low-Dimensional Space")
+st.title("Analyzing Pokémon and Building Competitive Teams in a low dimensional space")
 st.subheader("By Juan Eizaguerri")
 st.image("imgs/banner.png")
 st.markdown("""
@@ -249,7 +249,7 @@ st.markdown("""
     The most used Pokémon conform an outer shell around the less used Pokémon in the PCA space. The ones that escape from this shell are not allowed in this competitive league, most of them being legendaries and mega evolutions.
             """)
 
-st.header("5. Building our very own teams!")
+st.header("5. Using GMMs and MMO to generate Pokémon teams")
 st.markdown("""
     Now that we have seen that stats DO matter when it comes to building a competitive team, nothing is stopping us from using this information to automatically build viable teams.
             
