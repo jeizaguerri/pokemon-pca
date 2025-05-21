@@ -62,7 +62,7 @@ st.pyplot(fig1)
 plt.close(fig1)
 st.markdown("""
     Pokémon can have one or two types. The first type is the main type, while the second type is the secondary type. As you can see in the plot above, most Pokémon have two types, while a still significant number of Pokémon have only one type.
-    This is important to keep in mind when analyzing the data, as we are going to be filtering the data by type in future sections. In this cases we will only be using the first type, as the second type is not always available.
+    This is important to keep in mind when analyzing the data, as we are going to be filtering the data by type in future sections. In these cases we will only be using the first type, as the second type is not always available.
     
     Next, let's see how many Pokémon there are of each type (having main and secondary type in mind), which will be useful to understand the distribution of types in the data and to see if there are any types that are over or under represented.
     """)
@@ -72,7 +72,7 @@ fig2 = plot_pokemon_by_type(type_counts)
 st.pyplot(fig2)
 plt.close(fig2)
 st.markdown("""
-    While there is is a good amount of Pokémon of each type, it is surprising to see such an unbalanced distribution. It makes sense that the later introduced types such as fairy have less Pokémon, but it is interesting to see that some types such as ice, which is a type that was introduced in the first generation, have so few Pokémon, global warming seems to be affecting Pokémon too.
+    While there is a good amount of Pokémon of each type, it is surprising to see such an unbalanced distribution. It makes sense that the later introduced types such as fairy have less Pokémon, but it is interesting to see that some types such as ice, which is a type that was introduced in the first generation, have so few Pokémon, global warming seems to be affecting Pokémon too.
 
     Let's dig a bit deeper and see if there are more common combinations of types, or if there are types combinations that are yet to be explored. For this, we are going to create a co-occurrence matrix of types. The upper triangle of the matrix will be redundant so we will only show the lower triangle, the main diagonal is also removed since there are no Pokémon with the same type twice.
             """)
@@ -174,12 +174,12 @@ st.markdown("""
 
 st.image("imgs/hull_flying_rock.png", caption="Convex hulls of Flying and Rock types in PCA space")
 st.markdown("""
-    Even when the Flying type is the most common one as we saw before, the distribution of the Pokémon in this type is very narrow so the possibilities are limited. Compare it to another type like Rock, whith Pokémon that differ a lot from each other in terms of stats.
+    Even when the Flying type is the most common one as we saw before, the distribution of the Pokémon in this type is very narrow so the possibilities are limited. Compare it to another type like Rock, with Pokémon that differ a lot from each other in terms of stats.
         """)
 
 st.image("imgs/hull_dragon_bug.png", caption="Convex hulls of Dragon and Bug types in PCA space")
 st.markdown("""
-    When you chose a cool looking Dragon Pokémon over the poor bug you found in route 1, you were almost certainly making a good choice. The distribution of these two types are pretty much disjoint, with the Dragon Type having much more powerful Pokémon than the Bug type, which is specially noticeable when looking at the PC1 axis.
+    When you chose a cool looking Dragon Pokémon over the poor bug you found in route 1, you were almost certainly making a good choice. The distribution of these two types are pretty much disjoint, with the Dragon Type having much more powerful Pokémon than the Bug type, which is especially noticeable when looking at the PC1 axis.
         """)
 
 st.image("imgs/hull_electric_ground.png", caption="Convex hulls of Electric and Ground types in PCA space")
@@ -196,8 +196,8 @@ st.markdown("""
     Let's find out where the most popular Pokémon are in the PCA space and see if we can extract any information from it.
     
     We are going to be using the data provided by [Smogon](https://www.smogon.com/stats/) which is a competitive Pokémon community specializing in the art of competitive battling. They provide a lot of information extracted from the [Pokémon Showdown simulator](https://play.pokemonshowdown.com/).
-    They publish reports every month for different tiers and modes. We will be using the data from december 2024, OU tier, which is the most popular tier in the game, related to the most popular Pokémon. Also we will only be using the data from players with an elo rating of 1825 or higher. You can find the raw data [here](https://www.smogon.com/stats/2024-12/gen9ou-1825.txt).
-    This information is not provided in a structure manner, but rather as a plain text file, so a bit of regex magic is needed to extract the different fields that we are looking for. I wrote a small script to do this, which you can find [here](https://github.com/jeizaguerri/pokemon-pca/blob/main/load_competitive.py). As we did for the stats data, we will save the processed data in a [CSV](https://github.com/jeizaguerri/pokemon-pca/blob/main/smogon_usage_stats.csv) file to avoid having to process it every time.
+    They publish reports every month for different tiers and modes. We will be using the data from december 2024, OU Tier, which is the most popular tier in the game, related to the most popular Pokémon. Also we will only be using the data from players with an elo rating of 1825 or higher. You can find the raw data [here](https://www.smogon.com/stats/2024-12/gen9ou-1825.txt).
+    This information is not provided in a structured manner, but rather as a plain text file, so a bit of regex magic is needed to extract the different fields that we are looking for. I wrote a small script to do this, which you can find [here](https://github.com/jeizaguerri/pokemon-pca/blob/main/load_competitive.py). As we did for the stats data, we will save the processed data in a [CSV](https://github.com/jeizaguerri/pokemon-pca/blob/main/smogon_usage_stats.csv) file to avoid having to process it every time.
     """)
 if not os.path.exists('smogon_usage_stats.csv'):
     st.error("Smogon usage stats file 'smogon_usage_stats.csv' not found.")
@@ -211,7 +211,7 @@ except Exception as e:
     st.error(f"Failed to load data: {e}")
 
 st.markdown("""
-    As you can see, the table shows the usage of each Pokémon in both raw and percentage values. The *real* column can be a bit misleading, as it means the total times this pokemon appeared in battle / total number of pokemon actually sent out in battle.
+    As you can see, the table shows the usage of each Pokémon in both raw and percentage values. The *real* column can be a bit misleading, as it means the total times this Pokémon appeared in battle / total number of pokemon actually sent out in battle.
     What we are interested in is the *usage* column, which shows the percentage of battles in which the Pokémon was used. This means that if a Pokémon has a usage of 10%, it was used in 10% of the battles.
             
     All that is left to do is to combine this data with the stats data we have, so we can see how the most popular Pokémon are distributed in the PCA space. We will do this by merging the two dataframes using the name of the Pokémon as the key. This will require some processing since the names are not exactly the same in both dataframes, but I will save you the trouble so that we can jump straight to the fun part.
@@ -288,18 +288,18 @@ with col_center[1]:
 # IMPLEMENTATION
 
 st.markdown("""
-    The model seems to be suggesting good Pokémon, although sometimes it is outputing mega evolutions as if they were base Pokémon, which is not ideal. This is because the model is trained on the whole dataset, which includes mega evolutions. We could fix this by filtering the data to only include non-mega Pokémon before training the model, but we are going to leave it as is for now.
+    The model seems to be suggesting good Pokémon, although sometimes it is outputting mega evolutions as if they were base Pokémon, which is not ideal. This is because the model is trained on the whole dataset, which includes mega evolutions. We could fix this by filtering the data to only include non-mega Pokémon before training the model, but we are going to leave it as is for now.
             
-    The last step in our journey is to use this generator to build teams of 6 Pokémon. As you probably already thought, generating 6 individually viable Pokémon is not enough to build a make team. We need to make sure that the Pokémon we generate are not only good on their own, but also work well together as a team.
+    The last step in our journey is to use this generator to build teams of 6 Pokémon. As you probably already thought, generating 6 individually viable Pokémon is not enough to build a team. We need to make sure that the Pokémon we generate are not only good on their own, but also work well together as a team.
     I initially wanted to do this by some kind of supervised learning trained on popular team compositions, but sadly I couldn't find a good dataset to train the model. Instead, I decided to use a more heuristic approach, converting the problem into a [multi-objective optimization (MOO) problem](https://en.wikipedia.org/wiki/Multi-objective_optimization).
     This kind of problems involve finding solutions that balance two or more conflicting objectives while satisfying a set of constraints. Instead of a single best answer, MOO seeks a set of [Pareto optimal solutions](https://es.wikipedia.org/wiki/Eficiencia_de_Pareto).
 
     Applying this to pokémon team building is an extremely hard task as there are a lot of factors to consider, we are going to simplify the problem a bit by only considering the following objectives:
     - **Raw stats**: We saw earlier that stats usually correlate with usage, so it makes sense to use them as a metric to evaluate the teams. We are going to use the sum of all the stats of the Pokémon in the team as a metric to evaluate the teams. The higher the sum, the better the team is.
     - **Coverage**: The team should cover as many types as possible. This is important to avoid having a single type weakness, which can be exploited by the opponent. This is easy to calculate by simply counting the number of different types in the team.
-    - **Balance**: The team should be balanced in term of stats. This is important to make sure we have a good mix of offensive and defensive Pokémon, and don't end up with a team full of glass cannons or tanks. For this, we are going to use the average pair distance between the Pokémon in the team in the PCA space. The higher the distance, the more balanced the team is.
+    - **Balance**: The team should be balanced in terms of stats. This is important to make sure we have a good mix of offensive and defensive Pokémon, and don't end up with a team full of glass cannons or tanks. For this, we are going to use the average pair distance between the Pokémon in the team in the PCA space. The higher the distance, the more balanced the team is.
        
-    There is multiple ways to solve MOO problems, such as [genetic algorithms]() and [reinforcement learning](https://en.wikipedia.org/wiki/Reinforcement_learning). Instead, se are going to use a simple grid search with Pareto filtering since it will be easier to implement and understand.
+    There is multiple ways to solve MOO problems, such as [genetic algorithms]() and [reinforcement learning](https://en.wikipedia.org/wiki/Reinforcement_learning). Instead, we are going to use a simple grid search with Pareto filtering since it will be easier to implement and understand.
     All we need to do is to generate a lot of teams and then filter the ones that are Pareto optimal. This is done by comparing each team with all the other teams and checking if it is better in at least one objective and not worse in any other objective.
             """)
 
@@ -324,7 +324,7 @@ if st.button("Generate Teams", use_container_width=True, icon="🛡️"):
     
 st.markdown("""
     And there you have it! I wouldn't trust this teams to try to win a tournament, but they look quite good on paper.
-    This method would easily extensible by adding more objectives, such as synergy between Pokémon and coverage agains common meta threads.
+    This method would easily extensible by adding more objectives, such as synergy between Pokémon and coverage against common meta threads.
     It could even be used as a "auto-complete" feature, where you could select a few Pokémon and the app would generate a team for you.
             """)
 
