@@ -249,7 +249,7 @@ st.markdown("""
     The most used Pokémon conform an outer shell around the less used Pokémon in the PCA space. The ones that escape from this shell are not allowed in this competitive league, most of them being legendaries and mega evolutions.
             """)
 
-st.header("5. Using GMMs and MMO to generate Pokémon teams")
+st.header("5. Using GMMs and MOO to generate Pokémon teams")
 st.markdown("""
     Now that we have seen that stats DO matter when it comes to building a competitive team, nothing is stopping us from using this information to automatically build viable teams.
             
