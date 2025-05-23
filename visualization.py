@@ -239,11 +239,11 @@ def display_generated_pokemon(generated_pokemon, n_columns):
             st.caption(row['name'].capitalize())
 
 
-def show_teams(pareto_teams, pareto_scores, pokemon_data):
+def show_teams(pareto_teams, pareto_scores):
     for i, (team, (raw_stats, coverage, balance)) in enumerate(zip(pareto_teams, pareto_scores)):
         st.markdown(f"#### Team {i+1}")
         st.markdown(f"**Raw stats:** {int(raw_stats)} &nbsp; | &nbsp; **Coverage:** {coverage} types &nbsp; | &nbsp; **Balance:** {balance:.2f}")
-        team_df = pokemon_data.loc[team][['image', 'name', 'type1', 'type2'] + STAT_ROWS]
+        team_df = team[['image', 'name', 'type1', 'type2'] + STAT_ROWS]
         st.dataframe(
             team_df,
             column_config={

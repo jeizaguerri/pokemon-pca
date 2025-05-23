@@ -11,8 +11,8 @@ from app_logic import *
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 INPUT_DATA_FILE = 'pokemon_data.csv'
-
 STAT_ROWS = ['hp', 'attack', 'defense', 'special-attack', 'special-defense', 'speed']
+TEAM_SIZE = 6
 
 st.set_page_config(layout="centered")  # Ensure proper layout
 
@@ -288,9 +288,7 @@ with col_center[1]:
 # IMPLEMENTATION
 
 st.markdown("""
-    The model seems to be suggesting good Pokémon, although sometimes it is outputting mega evolutions as if they were base Pokémon, which is not ideal. This is because the model is trained on the whole dataset, which includes mega evolutions. We could fix this by filtering the data to only include non-mega Pokémon before training the model, but we are going to leave it as is for now.
-            
-    The last step in our journey is to use this generator to build teams of 6 Pokémon. As you probably already thought, generating 6 individually viable Pokémon is not enough to build a team. We need to make sure that the Pokémon we generate are not only good on their own, but also work well together as a team.
+    The model seems to be suggesting good Pokémon. The last step in our journey is to use this generator to build teams of 6 Pokémon. As you probably already thought, generating 6 individually viable Pokémon is not enough to build a team. We need to make sure that the Pokémon we generate are not only good on their own, but also work well together as a team.
     I initially wanted to do this by some kind of supervised learning trained on popular team compositions, but sadly I couldn't find a good dataset to train the model. Instead, I decided to use a more heuristic approach, converting the problem into a [multi-objective optimization (MOO) problem](https://en.wikipedia.org/wiki/Multi-objective_optimization).
     This kind of problems involve finding solutions that balance two or more conflicting objectives while satisfying a set of constraints. Instead of a single best answer, MOO seeks a set of [Pareto optimal solutions](https://es.wikipedia.org/wiki/Eficiencia_de_Pareto).
 
@@ -305,22 +303,19 @@ st.markdown("""
 
 st.markdown("### Generate optimized teams")
 n_teams = st.slider("Number of candidate teams to generate", 100, 3000, 1000, step=100)
-team_size = 6
 usage_threshold = 0.0
 
 if st.button("Generate Teams", use_container_width=True, icon="🛡️"):
     with st.spinner("Generating and evaluating teams..."):
-        teams = generate_candidate_teams(pokemon_data, n_teams=n_teams, team_size=team_size, usage_threshold=usage_threshold)
-        scores = [evaluate_team(team, pokemon_data) for team in teams]
-        norm_scores = normalize_scores(scores)
-        # For all objectives, higher is better
-        pareto_indices = select_pareto_front(norm_scores)
-        pareto_teams = [teams[i] for i in pareto_indices]
-        pareto_scores = [scores[i] for i in pareto_indices]
+        teams = generate_candidate_teams(pokemon_data, gmm, n_teams=n_teams, team_size=TEAM_SIZE, usage_threshold=0.01)
+        team_scores = [evaluate_team(team) for team in teams]
+        pareto_front = select_pareto_front(team_scores)
+        best_teams = [teams[i] for i in pareto_front]
+        best_scores = [team_scores[i] for i in pareto_front]
 
-    st.success(f"Found {len(pareto_teams)} Pareto-optimal teams!")
+    st.success(f"Found {len(best_teams)} Pareto-optimal teams!")
     with st.expander("Show Pareto-optimal teams"):
-        show_teams(pareto_teams, pareto_scores, pokemon_data)
+        show_teams(best_teams, best_scores)
     
 st.markdown("""
     And there you have it! I wouldn't trust this teams to try to win a tournament, but they look quite good on paper.

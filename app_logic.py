@@ -70,11 +70,12 @@ def find_k_nearest_pokemon(pokemon_data, target, k=5):
     # Get the indices of the k nearest Pokémon
     nearest_indices = np.argsort(distances)[:k]
 
-    # Add the distances to the DataFrame for better visualization
-    pokemon_data['distance'] = distances
+    # Add the distances to a copy of the DataFrame for better visualization
+    result_df = pokemon_data.copy()
+    result_df.loc[:, 'distance'] = distances
 
     # Return the nearest Pokémon
-    return pokemon_data.iloc[nearest_indices]
+    return result_df.iloc[nearest_indices]
 
 
 def merge_dataframes(pokemon_data, smogon_data):
@@ -82,10 +83,13 @@ def merge_dataframes(pokemon_data, smogon_data):
     smogon_data['name'] = smogon_data['name'].str.replace(" ", "-", regex=False)
     smogon_data = smogon_data.rename(columns={'Rank': 'rank', 'Usage %': 'usage_percent'})
     smogon_data = smogon_data[['name', 'rank', 'usage_percent']]
-    pokemon_data = pd.merge(pokemon_data, smogon_data, on='name', how='left')
+    pokemon_data = pd.merge(pokemon_data, smogon_data, on='name', how='right')
     # Set default values for missing rank and usage_percent
     pokemon_data['rank'] = pokemon_data['rank'].fillna(999).astype(int)
     pokemon_data['usage_percent'] = pokemon_data['usage_percent'].fillna(0)
+    # Drop pokémon with no id
+    pokemon_data = pokemon_data[pokemon_data['id'].notnull()]
+
     return pokemon_data
 
 
@@ -108,47 +112,46 @@ def train_gmm(data, n_components):
 def generate_pokemon(gmm, samples, pokemon_data):
     generated_points = gmm.sample(samples)[0]
 
-    # Find the closest Pokémon to each generated point
+    # Find the closest Pokémon to each generated point without repeats
+    available_pokemon = pokemon_data.copy()
     generated_pokemon = []
     for point in generated_points:
-        closest = find_k_nearest_pokemon(pokemon_data, point, k=1)
-        generated_pokemon.append(closest.iloc[0])
+        if available_pokemon.empty:
+            break  # No more unique Pokémon to select
+        closest = find_k_nearest_pokemon(available_pokemon, point, k=1)
+        selected = closest.iloc[0]
+        generated_pokemon.append(selected)
+        # Remove the selected Pokémon to avoid repeats
+        available_pokemon = available_pokemon[available_pokemon['name'] != selected['name']]
 
     generated_pokemon = pd.DataFrame(generated_pokemon).reset_index(drop=True)
 
     return generated_pokemon
 
 
-def evaluate_team(team, pokemon_data):
-    # Raw stats: sum of all stats
-    raw_stats = pokemon_data.loc[team, STAT_ROWS].sum().sum()
-    # Coverage: number of unique types (type1 and type2)
-    types = set()
-    for idx in team:
-        row = pokemon_data.loc[idx]
-        types.add(row['type1'])
-        if pd.notnull(row['type2']):
-            types.add(row['type2'])
-    coverage = len(types)
-    # Balance: average pairwise distance in PCA space
-    pca_points = pokemon_data.loc[team, ['pca1', 'pca2', 'pca3']].to_numpy()
-    if len(pca_points) > 1:
-        dists = [np.linalg.norm(p1 - p2) for p1, p2 in itertools.combinations(pca_points, 2)]
-        balance = np.mean(dists)
-    else:
-        balance = 0
-    return raw_stats, coverage, balance
-
-
-def generate_candidate_teams(pokemon_data, n_teams=1000, team_size=6, usage_threshold=1.0):
+def generate_candidate_teams(pokemon_data, gmm, n_teams=1000, team_size=6, usage_threshold=1.0):
     # Only use Pokémon above usage threshold and drop duplicates by name (avoid megas, forms)
-    candidates = pokemon_data[pokemon_data['usage_percent'] >= usage_threshold].drop_duplicates('name')
-    candidate_indices = candidates.index.tolist()
+    candidates = pokemon_data[pokemon_data['usage_percent'] >= usage_threshold]
     teams = []
     for _ in range(n_teams):
-        team = np.random.choice(candidate_indices, size=team_size, replace=False)
-        teams.append(team)
+        team_df = generate_pokemon(gmm, 6, candidates)
+        teams.append(team_df)
     return teams
+
+
+def evaluate_team(team: pd.DataFrame):
+    raw_stats = team[STAT_ROWS].sum().sum()
+    coverage = len(set(team['type1']).union(set(team['type2'])))
+    # Calculate balance as the average pairwise Euclidean distance between team members in stat space
+    stats = team[STAT_ROWS].to_numpy()
+    n = len(stats)
+    if n < 2:
+        balance = 0.0
+    else:
+        dists = [np.linalg.norm(stats[i] - stats[j]) for i in range(n) for j in range(i+1, n)]
+        balance = np.mean(dists)
+
+    return raw_stats, coverage, balance
 
 
 def normalize_scores(scores):
@@ -168,4 +171,7 @@ def select_pareto_front(scores):
         if is_efficient[i]:
             is_efficient[is_efficient] = np.any(arr[is_efficient] > c, axis=1) | np.all(arr[is_efficient] == c, axis=1)
             is_efficient[i] = True  # Keep self
-    return np.where(is_efficient)[0]
+
+    efficient_indices = np.where(is_efficient)[0]
+
+    return efficient_indices
